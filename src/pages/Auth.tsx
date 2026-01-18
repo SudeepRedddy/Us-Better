@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +14,6 @@ export default function Auth() {
   const [avatarType, setAvatarType] = useState<'male' | 'female'>('male');
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +29,7 @@ export default function Auth() {
         if (error) throw error;
         toast.success('Welcome back! 👋');
       }
-      navigate('/');
+      // Navigation handled by AuthRoute when auth state changes
     } catch (error: any) {
       toast.error(error.message || 'Something went wrong');
     } finally {
