@@ -1,0 +1,155 @@
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { X, Calendar } from 'lucide-react';
+import { format, addDays } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Habit } from '@/types/habits';
+
+interface HabitFormProps {
+  habit?: Habit;
+  onSubmit: (data: { title: string; description: string; start_date: string; end_date: string; color: string }) => void;
+  onClose: () => void;
+}
+
+export const HabitForm = ({ habit, onSubmit, onClose }: HabitFormProps) => {
+  const [title, setTitle] = useState(habit?.title || '');
+  const [description, setDescription] = useState(habit?.description || '');
+  const [startDate, setStartDate] = useState(habit?.start_date || format(new Date(), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(habit?.end_date || format(addDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [color, setColor] = useState(habit?.color || 'sage');
+
+  const colors = [
+    { name: 'sage', class: 'bg-sage' },
+    { name: 'coral', class: 'bg-coral' },
+    { name: 'terracotta', class: 'bg-terracotta' },
+  ];
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (title.trim()) {
+      onSubmit({ 
+        title: title.trim(), 
+        description: description.trim(), 
+        start_date: startDate, 
+        end_date: endDate,
+        color 
+      });
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-foreground/20 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        className="bg-card w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-medium p-6 pb-safe-bottom"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-display text-xl font-bold">
+            {habit ? 'Edit Habit' : 'New Habit'}
+          </h2>
+          <button 
+            onClick={onClose}
+            className="tap-target p-2 rounded-full hover:bg-muted transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <Label htmlFor="title" className="text-sm font-medium">
+              Habit Name
+            </Label>
+            <Input
+              id="title"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="e.g., Morning meditation"
+              className="mt-1.5 h-12 rounded-xl"
+              autoFocus
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="description" className="text-sm font-medium">
+              Description (optional)
+            </Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="What's your goal?"
+              className="mt-1.5 rounded-xl resize-none"
+              rows={2}
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="startDate" className="text-sm font-medium flex items-center gap-1.5">
+                <Calendar className="w-4 h-4" /> Start
+              </Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                className="mt-1.5 h-12 rounded-xl"
+              />
+            </div>
+            <div>
+              <Label htmlFor="endDate" className="text-sm font-medium flex items-center gap-1.5">
+                <Calendar className="w-4 h-4" /> End
+              </Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                min={startDate}
+                className="mt-1.5 h-12 rounded-xl"
+              />
+            </div>
+          </div>
+          
+          <div>
+            <Label className="text-sm font-medium">Color</Label>
+            <div className="flex gap-3 mt-2">
+              {colors.map(c => (
+                <button
+                  key={c.name}
+                  type="button"
+                  onClick={() => setColor(c.name)}
+                  className={`w-10 h-10 rounded-full ${c.class} transition-all ${
+                    color === c.name ? 'ring-2 ring-offset-2 ring-foreground scale-110' : 'opacity-70 hover:opacity-100'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+          
+          <Button 
+            type="submit" 
+            className="w-full h-12 rounded-xl font-semibold text-base"
+            disabled={!title.trim()}
+          >
+            {habit ? 'Save Changes' : 'Create Habit'}
+          </Button>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+};
