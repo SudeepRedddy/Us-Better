@@ -95,20 +95,36 @@ export const usePushNotifications = () => {
   }, [isSupported, user]);
 
   const subscribe = useCallback(async () => {
-    if (!isSupported || !user || !vapidPublicKey) {
-      toast.error('Push notifications are not available');
+    if (!isSupported || !user) {
+      toast.error('Push notifications are not available on this device');
+      return false;
+    }
+
+    if (!vapidPublicKey) {
+      toast.error('Notification service is not ready. Please try again.');
       return false;
     }
 
     try {
       setIsLoading(true);
 
-      // Request permission
-      const permissionResult = await Notification.requestPermission();
-      setPermission(permissionResult);
+      // Check current permission first
+      const currentPermission = Notification.permission;
+      
+      if (currentPermission === 'denied') {
+        toast.error('Notifications are blocked. Please enable them in your browser settings.');
+        return false;
+      }
+
+      // Request permission if not already granted
+      let permissionResult: NotificationPermission = currentPermission;
+      if (currentPermission === 'default') {
+        permissionResult = await Notification.requestPermission();
+        setPermission(permissionResult);
+      }
       
       if (permissionResult !== 'granted') {
-        toast.error('Notification permission denied');
+        toast.error('Please allow notifications to receive reminders');
         return false;
       }
 
@@ -155,12 +171,16 @@ export const usePushNotifications = () => {
       }
 
       setIsSubscribed(true);
-      toast.success('Notifications enabled! You\'ll get reminders at 7 PM.');
+      toast.success('Notifications enabled! You\'ll get reminders at 7 PM IST.');
       return true;
 
     } catch (error: any) {
       console.error('Error subscribing to push:', error);
-      toast.error('Failed to enable notifications');
+      if (error.message?.includes('permission')) {
+        toast.error('Please allow notifications in your browser settings');
+      } else {
+        toast.error('Failed to enable notifications. Please try again.');
+      }
       return false;
     } finally {
       setIsLoading(false);
