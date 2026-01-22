@@ -1,8 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Flame, Calendar, MoreVertical, Trash2, Edit3 } from 'lucide-react';
+import { Check, Flame, Calendar, MoreVertical, Trash2, Edit3, ChevronRight } from 'lucide-react';
 import { HabitWithStats } from '@/types/habits';
 import { format, parseISO, isWithinInterval, isSameDay } from 'date-fns';
-import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
 
@@ -15,6 +15,7 @@ interface HabitCardProps {
 }
 
 export const HabitCard = ({ habit, isOwner, onToggle, onEdit, onDelete }: HabitCardProps) => {
+  const navigate = useNavigate();
   const today = format(new Date(), 'yyyy-MM-dd');
   const isCheckedToday = habit.checkIns.some(c => c.check_in_date === today);
   
@@ -22,10 +23,19 @@ export const HabitCard = ({ habit, isOwner, onToggle, onEdit, onDelete }: HabitC
   const endDate = parseISO(habit.end_date);
   const isActiveToday = isWithinInterval(new Date(), { start: startDate, end: endDate });
 
-  const handleToggle = () => {
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (isOwner && isActiveToday) {
       onToggle(today);
     }
+  };
+
+  const handleCardClick = () => {
+    navigate(`/habit/${habit.id}`);
+  };
+
+  const handleMenuClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
   };
 
   return (
@@ -34,7 +44,8 @@ export const HabitCard = ({ habit, isOwner, onToggle, onEdit, onDelete }: HabitC
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="bg-card rounded-2xl p-4 shadow-soft border border-border/50"
+      onClick={handleCardClick}
+      className="bg-card rounded-2xl p-4 shadow-soft border border-border/50 cursor-pointer hover:shadow-md transition-shadow"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 flex-1">
@@ -84,23 +95,29 @@ export const HabitCard = ({ habit, isOwner, onToggle, onEdit, onDelete }: HabitC
           </div>
         </div>
         
-        {isOwner && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="tap-target p-2 rounded-lg hover:bg-muted transition-colors">
-                <MoreVertical className="w-5 h-5 text-muted-foreground" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={onEdit} className="gap-2">
-                <Edit3 className="w-4 h-4" /> Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onDelete} className="gap-2 text-destructive focus:text-destructive">
-                <Trash2 className="w-4 h-4" /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <div className="flex items-center gap-1">
+          {isOwner && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button 
+                  onClick={handleMenuClick}
+                  className="tap-target p-2 rounded-lg hover:bg-muted transition-colors"
+                >
+                  <MoreVertical className="w-5 h-5 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit?.(); }} className="gap-2">
+                  <Edit3 className="w-4 h-4" /> Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDelete?.(); }} className="gap-2 text-destructive focus:text-destructive">
+                  <Trash2 className="w-4 h-4" /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          <ChevronRight className="w-5 h-5 text-muted-foreground/50" />
+        </div>
       </div>
       
       <div className="mt-4">

@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import Friend from "./pages/Friend";
 import Compete from "./pages/Compete";
 import Profile from "./pages/Profile";
+import HabitDetail from "./pages/HabitDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const AppRoutes = () => (
   <Routes>
     <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
     <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+    <Route path="/habit/:id" element={<ProtectedRoute><HabitDetail /></ProtectedRoute>} />
     <Route path="/friend" element={<ProtectedRoute><Friend /></ProtectedRoute>} />
     <Route path="/compete" element={<ProtectedRoute><Compete /></ProtectedRoute>} />
     <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
