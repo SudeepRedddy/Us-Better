@@ -3,6 +3,7 @@ import { useHabits } from '@/hooks/useHabits';
 import { Avatar } from '@/components/Avatar';
 import { BottomNav } from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
+import { NotificationToggle } from '@/components/NotificationToggle';
 import { LogOut, Flame, Target, Calendar } from 'lucide-react';
 
 export default function Profile() {
@@ -44,6 +45,8 @@ export default function Profile() {
             ))}
           </div>
         )}
+
+        <NotificationToggle />
 
         <Button variant="outline" className="w-full h-12 rounded-xl gap-2" onClick={signOut}>
           <LogOut className="w-4 h-4" /> Sign Out
