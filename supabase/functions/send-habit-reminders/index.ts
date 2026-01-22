@@ -1,37 +1,9 @@
-// @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { sendPushNotification, type PushSubscription } from '../_shared/webpush.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-// Simple web push implementation using fetch
-async function sendWebPush(
-  subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
-  payload: string,
-  vapidPublicKey: string,
-  vapidPrivateKey: string
-) {
-  // For web push we need to use the web-push library
-  // Since it's complex to implement from scratch, we'll use a simpler approach
-  // by calling an external service or implementing basic push
-  
-  const response = await fetch(subscription.endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'TTL': '86400',
-    },
-    body: payload,
-  })
-  
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Push failed: ${response.status} - ${text}`)
-  }
-  
-  return response
 }
 
 Deno.serve(async (req) => {
@@ -45,10 +17,14 @@ Deno.serve(async (req) => {
     const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY')!
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY')!
 
+    console.log('Starting push notification job...')
+    console.log('VAPID keys configured:', !!vapidPublicKey && !!vapidPrivateKey)
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Get today's date
     const today = new Date().toISOString().split('T')[0]
+    console.log('Today:', today)
 
     // Get all push subscriptions
     const { data: subscriptions, error: subError } = await supabase
@@ -60,6 +36,8 @@ Deno.serve(async (req) => {
       throw subError
     }
 
+    console.log('Found subscriptions:', subscriptions?.length || 0)
+
     if (!subscriptions || subscriptions.length === 0) {
       return new Response(
         JSON.stringify({ message: 'No subscriptions found' }),
@@ -67,20 +45,12 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Import web-push dynamically to avoid type issues
-    const webpush = await import('https://esm.sh/web-push@3.6.7?target=deno')
-    
-    // Configure web-push
-    webpush.default.setVapidDetails(
-      'mailto:notifications@us-better.lovable.app',
-      vapidPublicKey,
-      vapidPrivateKey
-    )
-
     const results = []
 
     for (const sub of subscriptions) {
       try {
+        console.log(`Processing subscription for user ${sub.user_id}`)
+
         // Get user's habits that are active today
         const { data: habits, error: habitsError } = await supabase
           .from('habits')
@@ -93,6 +63,8 @@ Deno.serve(async (req) => {
           console.error(`Error fetching habits for user ${sub.user_id}:`, habitsError)
           continue
         }
+
+        console.log(`Found ${habits?.length || 0} active habits for user ${sub.user_id}`)
 
         if (!habits || habits.length === 0) {
           continue // No active habits for this user
@@ -115,12 +87,15 @@ Deno.serve(async (req) => {
         const completedHabitIds = new Set(checkIns?.map(c => c.habit_id) || [])
         const incompleteHabits = habits.filter(h => !completedHabitIds.has(h.id))
 
+        console.log(`Incomplete habits: ${incompleteHabits.length}`)
+
         if (incompleteHabits.length === 0) {
+          results.push({ userId: sub.user_id, status: 'skipped', reason: 'all_complete' })
           continue // All habits completed
         }
 
-        // Send push notification
-        const pushSubscription = {
+        // Send push notification using native implementation
+        const pushSubscription: PushSubscription = {
           endpoint: sub.endpoint,
           keys: {
             p256dh: sub.p256dh,
@@ -138,31 +113,58 @@ Deno.serve(async (req) => {
           },
         })
 
-        await webpush.default.sendNotification(pushSubscription, payload)
-        results.push({ userId: sub.user_id, status: 'sent', incompleteCount: incompleteHabits.length })
-
-      } catch (err: any) {
-        console.error(`Error processing subscription ${sub.id}:`, err)
+        console.log(`Sending push to endpoint: ${sub.endpoint.substring(0, 50)}...`)
         
-        // If subscription is expired or invalid, delete it
-        if (err.statusCode === 410 || err.statusCode === 404) {
-          await supabase.from('push_subscriptions').delete().eq('id', sub.id)
-          results.push({ userId: sub.user_id, status: 'deleted', reason: 'expired' })
+        const result = await sendPushNotification(
+          pushSubscription,
+          payload,
+          vapidPublicKey,
+          vapidPrivateKey
+        )
+
+        console.log(`Push result:`, result)
+
+        if (result.success) {
+          results.push({ 
+            userId: sub.user_id, 
+            status: 'sent', 
+            incompleteCount: incompleteHabits.length,
+            statusCode: result.statusCode
+          })
         } else {
-          results.push({ userId: sub.user_id, status: 'error', error: err.message })
+          // If subscription is expired or invalid, delete it
+          if (result.statusCode === 410 || result.statusCode === 404) {
+            await supabase.from('push_subscriptions').delete().eq('id', sub.id)
+            results.push({ userId: sub.user_id, status: 'deleted', reason: 'expired' })
+          } else {
+            results.push({ 
+              userId: sub.user_id, 
+              status: 'error', 
+              error: result.error,
+              statusCode: result.statusCode
+            })
+          }
         }
+
+      } catch (err: unknown) {
+        console.error(`Error processing subscription ${sub.id}:`, err)
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        results.push({ userId: sub.user_id, status: 'error', error: errorMessage })
       }
     }
+
+    console.log('Push notification job completed. Results:', results)
 
     return new Response(
       JSON.stringify({ success: true, results }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in send-habit-reminders:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
