@@ -123,7 +123,7 @@ export const HabitCard = ({ habit, isOwner, onToggle, onEdit, onDelete }: HabitC
       <div className="mt-4">
         <Progress value={habit.completionPercentage} className="h-2" />
         <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-          <span>{habit.totalDays} days</span>
+          <span>{habit.totalCompleted} / {habit.totalDays} days</span>
           <span className="flex items-center gap-1">
             <Calendar className="w-3 h-3" />
             {format(endDate, 'MMM d')}
