@@ -17,7 +17,16 @@ Deno.serve(async (req) => {
     const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY')!
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY')!
 
-    console.log('Starting push notification job...')
+    // Check if this is a test request
+    let isTest = false
+    try {
+      const body = await req.json()
+      isTest = body?.test === true
+    } catch {
+      // No body or invalid JSON, not a test
+    }
+
+    console.log('Starting push notification job...', isTest ? '(TEST MODE)' : '')
     console.log('VAPID keys configured:', !!vapidPublicKey && !!vapidPrivateKey)
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
@@ -41,6 +50,59 @@ Deno.serve(async (req) => {
     if (!subscriptions || subscriptions.length === 0) {
       return new Response(
         JSON.stringify({ message: 'No subscriptions found' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // TEST MODE: Send a test notification to all subscriptions
+    if (isTest) {
+      console.log('Test mode: sending test notification to all subscriptions')
+      const results = []
+      
+      for (const sub of subscriptions) {
+        const pushSubscription: PushSubscription = {
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.p256dh,
+            auth: sub.auth_key,
+          },
+        }
+
+        const payload = JSON.stringify({
+          title: '🧪 Test Notification',
+          body: 'Push notifications are working! You\'ll receive reminders at 7 PM IST.',
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
+          data: {
+            url: '/',
+          },
+        })
+
+        console.log(`Sending test push to endpoint: ${sub.endpoint.substring(0, 50)}...`)
+        
+        const result = await sendPushNotification(
+          pushSubscription,
+          payload,
+          vapidPublicKey,
+          vapidPrivateKey
+        )
+
+        console.log(`Test push result:`, result)
+        
+        if (result.success) {
+          results.push({ userId: sub.user_id, status: 'sent', statusCode: result.statusCode })
+        } else {
+          results.push({ 
+            userId: sub.user_id, 
+            status: 'error', 
+            error: result.error,
+            statusCode: result.statusCode
+          })
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, test: true, results }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
