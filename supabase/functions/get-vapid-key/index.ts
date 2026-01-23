@@ -8,7 +8,7 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
-  const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY')
+  const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY')?.trim()
 
   if (!vapidPublicKey) {
     return new Response(
