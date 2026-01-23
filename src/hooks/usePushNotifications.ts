@@ -22,6 +22,27 @@ export const usePushNotifications = () => {
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [vapidPublicKey, setVapidPublicKey] = useState<string | null>(null);
 
+  const fetchVapidPublicKey = useCallback(async (): Promise<string | null> => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-vapid-key`,
+        {
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        }
+      );
+      if (!response.ok) return null;
+      const data = await response.json();
+      const key = typeof data?.vapidPublicKey === 'string' ? data.vapidPublicKey.trim() : null;
+      if (key) setVapidPublicKey(key);
+      return key;
+    } catch (error) {
+      console.error('Error fetching VAPID key:', error);
+      return null;
+    }
+  }, []);
+
   // Check if push notifications are supported and fetch VAPID key
   useEffect(() => {
     const init = async () => {
@@ -30,29 +51,14 @@ export const usePushNotifications = () => {
       
       if (supported) {
         setPermission(Notification.permission);
-        
-        // Fetch VAPID public key from edge function
-        try {
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-vapid-key`,
-            {
-              headers: {
-                'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              },
-            }
-          );
-          if (response.ok) {
-            const data = await response.json();
-            setVapidPublicKey(data.vapidPublicKey);
-          }
-        } catch (error) {
-          console.error('Error fetching VAPID key:', error);
-        }
+
+        // Fetch VAPID public key from backend
+        await fetchVapidPublicKey();
       }
     };
     
     init();
-  }, []);
+  }, [fetchVapidPublicKey]);
 
   // Check current subscription status
   useEffect(() => {
@@ -100,7 +106,9 @@ export const usePushNotifications = () => {
       return false;
     }
 
-    if (!vapidPublicKey) {
+    // Always fetch latest VAPID key right before subscribing (handles key rotation)
+    const latestVapidKey = await fetchVapidPublicKey();
+    if (!latestVapidKey) {
       toast.error('Notification service is not ready. Please try again.');
       return false;
     }
@@ -134,7 +142,7 @@ export const usePushNotifications = () => {
       // Subscribe to push
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        applicationServerKey: urlBase64ToUint8Array(latestVapidKey),
       });
 
       // Extract keys
@@ -185,7 +193,7 @@ export const usePushNotifications = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [isSupported, user, vapidPublicKey]);
+  }, [isSupported, user, fetchVapidPublicKey]);
 
   const unsubscribe = useCallback(async () => {
     if (!user) return false;
