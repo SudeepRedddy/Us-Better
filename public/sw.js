@@ -1,28 +1,41 @@
 // Service Worker for Push Notifications
 
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
+  console.log('[SW] Push event received');
+  
+  if (!event.data) {
+    console.log('[SW] No data in push event');
+    return;
+  }
 
   try {
     const data = event.data.json();
+    console.log('[SW] Push data:', data);
     
     const options = {
       body: data.body,
       icon: data.icon || '/icon-192.png',
       badge: data.badge || '/icon-192.png',
-      vibrate: [100, 50, 100],
+      vibrate: [200, 100, 200],
       data: data.data || {},
+      tag: 'habit-reminder-' + Date.now(), // Unique tag to prevent grouping
+      renotify: true, // Always notify even if same tag
+      requireInteraction: false, // Auto-dismiss after a while
+      silent: false, // Make sure sound plays
       actions: [
         { action: 'open', title: 'Open App' },
         { action: 'dismiss', title: 'Dismiss' },
       ],
     };
 
+    // Always show notification, even if app is in foreground
     event.waitUntil(
       self.registration.showNotification(data.title, options)
+        .then(() => console.log('[SW] Notification shown successfully'))
+        .catch((err) => console.error('[SW] Failed to show notification:', err))
     );
   } catch (error) {
-    console.error('Error showing notification:', error);
+    console.error('[SW] Error parsing push data:', error);
   }
 });
 
