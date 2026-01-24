@@ -63,8 +63,14 @@ export const usePushNotifications = () => {
   // Check current subscription status
   useEffect(() => {
     const checkSubscription = async () => {
-      if (!isSupported || !user) {
+      // If not supported, just stop loading
+      if (!isSupported) {
         setIsLoading(false);
+        return;
+      }
+
+      // If no user yet, wait (don't set loading false yet)
+      if (!user) {
         return;
       }
 
@@ -75,12 +81,17 @@ export const usePushNotifications = () => {
         if (subscription) {
           // Check if subscription exists in database using fetch
           const session = await supabase.auth.getSession();
+          if (!session.data.session?.access_token) {
+            setIsSubscribed(false);
+            return;
+          }
+          
           const response = await fetch(
             `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/push_subscriptions?user_id=eq.${user.id}&endpoint=eq.${encodeURIComponent(subscription.endpoint)}&select=id`,
             {
               headers: {
                 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-                'Authorization': `Bearer ${session.data.session?.access_token}`,
+                'Authorization': `Bearer ${session.data.session.access_token}`,
               },
             }
           );

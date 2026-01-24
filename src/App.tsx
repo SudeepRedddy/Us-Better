@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Friend from "./pages/Friend";
+import FriendDetail from "./pages/FriendDetail";
 import Compete from "./pages/Compete";
 import Profile from "./pages/Profile";
 import HabitDetail from "./pages/HabitDetail";
@@ -33,6 +34,7 @@ const AppRoutes = () => (
     <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
     <Route path="/habit/:id" element={<ProtectedRoute><HabitDetail /></ProtectedRoute>} />
     <Route path="/friend" element={<ProtectedRoute><Friend /></ProtectedRoute>} />
+    <Route path="/friend/:userId" element={<ProtectedRoute><FriendDetail /></ProtectedRoute>} />
     <Route path="/compete" element={<ProtectedRoute><Compete /></ProtectedRoute>} />
     <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />

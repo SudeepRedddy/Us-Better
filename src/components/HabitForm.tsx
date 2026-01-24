@@ -1,16 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, Calendar } from 'lucide-react';
+import { X, Calendar, Eye, EyeOff } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Habit } from '@/types/habits';
 
 interface HabitFormProps {
   habit?: Habit;
-  onSubmit: (data: { title: string; description: string; start_date: string; end_date: string; color: string }) => void;
+  onSubmit: (data: { title: string; description: string; start_date: string; end_date: string; color: string; is_public: boolean }) => void;
   onClose: () => void;
 }
 
@@ -20,6 +21,7 @@ export const HabitForm = ({ habit, onSubmit, onClose }: HabitFormProps) => {
   const [startDate, setStartDate] = useState(habit?.start_date || format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(habit?.end_date || format(addDays(new Date(), 30), 'yyyy-MM-dd'));
   const [color, setColor] = useState(habit?.color || 'sage');
+  const [isPublic, setIsPublic] = useState(habit?.is_public ?? true);
 
   const colors = [
     { name: 'sage', class: 'bg-sage' },
@@ -35,7 +37,8 @@ export const HabitForm = ({ habit, onSubmit, onClose }: HabitFormProps) => {
         description: description.trim(), 
         start_date: startDate, 
         end_date: endDate,
-        color 
+        color,
+        is_public: isPublic,
       });
     }
   };
@@ -140,8 +143,21 @@ export const HabitForm = ({ habit, onSubmit, onClose }: HabitFormProps) => {
               ))}
             </div>
           </div>
+
+          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
+            <div className="flex items-center gap-2">
+              {isPublic ? <Eye className="w-4 h-4 text-primary" /> : <EyeOff className="w-4 h-4 text-muted-foreground" />}
+              <div>
+                <Label className="text-sm font-medium">Visible to Friends</Label>
+                <p className="text-xs text-muted-foreground">
+                  {isPublic ? 'Friends can see this habit' : 'Only you can see this habit (progress still visible)'}
+                </p>
+              </div>
+            </div>
+            <Switch checked={isPublic} onCheckedChange={setIsPublic} />
+          </div>
           
-          <Button 
+          <Button
             type="submit" 
             className="w-full h-12 rounded-xl font-semibold text-base"
             disabled={!title.trim()}
