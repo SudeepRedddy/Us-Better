@@ -2,9 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { Profile, Habit, DailyCheckIn, HabitWithStats, UserWithHabits } from '@/types/habits';
-import { differenceInDays, parseISO, format, eachDayOfInterval, isWithinInterval, isBefore, isAfter } from 'date-fns';
+import { differenceInDays, parseISO, format, isBefore, isAfter } from 'date-fns';
 
-const calculateStreak = (checkIns: DailyCheckIn[], startDate: string, endDate: string): { current: number; longest: number } => {
+const calculateStreak = (checkIns: DailyCheckIn[]): { current: number; longest: number } => {
   if (checkIns.length === 0) return { current: 0, longest: 0 };
   
   const sortedDates = checkIns
@@ -14,7 +14,6 @@ const calculateStreak = (checkIns: DailyCheckIn[], startDate: string, endDate: s
   const today = format(new Date(), 'yyyy-MM-dd');
   const yesterday = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
   
-  // Calculate current streak
   let currentStreak = 0;
   if (sortedDates[0] === today || sortedDates[0] === yesterday) {
     currentStreak = 1;
@@ -30,7 +29,6 @@ const calculateStreak = (checkIns: DailyCheckIn[], startDate: string, endDate: s
     }
   }
   
-  // Calculate longest streak
   let longestStreak = 0;
   let tempStreak = 1;
   const ascending = [...sortedDates].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
@@ -56,7 +54,6 @@ const calculateHabitStats = (habit: Habit, checkIns: DailyCheckIn[]): HabitWithS
   const endDate = parseISO(habit.end_date);
   const today = new Date();
   
-  // Only count days up to today or end date, whichever is earlier
   const effectiveEndDate = isBefore(today, endDate) ? today : endDate;
   const effectiveStartDate = isAfter(startDate, today) ? today : startDate;
   
@@ -65,7 +62,7 @@ const calculateHabitStats = (habit: Habit, checkIns: DailyCheckIn[]): HabitWithS
   const totalCompleted = habitCheckIns.length;
   const completionPercentage = totalDays > 0 ? Math.round((totalCompleted / totalDays) * 100) : 0;
   
-  const { current, longest } = calculateStreak(habitCheckIns, habit.start_date, habit.end_date);
+  const { current, longest } = calculateStreak(habitCheckIns);
   
   return {
     ...habit,
@@ -179,12 +176,15 @@ export const useHabits = () => {
   const habitsWithStats: HabitWithStats[] = habits.map(h => calculateHabitStats(h, checkIns));
 
   const myProfile = profiles.find(p => p.user_id === user?.id);
-  const friendProfile = profiles.find(p => p.user_id !== user?.id);
 
-  const getUserWithHabits = (profile: Profile | undefined): UserWithHabits | null => {
+  const getUserWithHabits = (profile: Profile | undefined, filterPublic = false): UserWithHabits | null => {
     if (!profile) return null;
     
-    const userHabits = habitsWithStats.filter(h => h.user_id === profile.user_id);
+    let userHabits = habitsWithStats.filter(h => h.user_id === profile.user_id);
+    if (filterPublic && profile.user_id !== user?.id) {
+      userHabits = userHabits.filter(h => h.is_public);
+    }
+    
     const totalScore = userHabits.reduce((sum, h) => sum + h.totalCompleted, 0);
     const averageCompletion = userHabits.length > 0
       ? Math.round(userHabits.reduce((sum, h) => sum + h.completionPercentage, 0) / userHabits.length)
@@ -193,18 +193,32 @@ export const useHabits = () => {
     return { profile, habits: userHabits, totalScore, averageCompletion };
   };
 
+  // Get data for any user by their user_id
+  const getUserData = (userId: string, showOnlyPublic = true): UserWithHabits | null => {
+    const profile = profiles.find(p => p.user_id === userId);
+    return getUserWithHabits(profile, showOnlyPublic);
+  };
+
+  // Get all friends' data (for leaderboard)
+  const getAllUsersData = (userIds: string[]): UserWithHabits[] => {
+    return userIds
+      .map(id => getUserData(id, true))
+      .filter((u): u is UserWithHabits => u !== null);
+  };
+
   return {
     profiles,
     habits: habitsWithStats,
+    myHabits: habitsWithStats.filter(h => h.user_id === user?.id),
     checkIns,
     myProfile,
-    friendProfile,
-    myData: getUserWithHabits(myProfile),
-    friendData: getUserWithHabits(friendProfile),
+    myData: getUserWithHabits(myProfile, false),
     isLoading,
     createHabit,
     updateHabit,
     deleteHabit,
     toggleCheckIn,
+    getUserData,
+    getAllUsersData,
   };
 };
