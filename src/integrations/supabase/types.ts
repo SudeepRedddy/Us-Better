@@ -43,33 +43,6 @@ export type Database = {
           },
         ]
       }
-      friendships: {
-        Row: {
-          created_at: string
-          friend_id: string
-          id: string
-          status: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          friend_id: string
-          id?: string
-          status?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          friend_id?: string
-          id?: string
-          status?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       habits: {
         Row: {
           color: string | null
@@ -77,7 +50,6 @@ export type Database = {
           description: string | null
           end_date: string
           id: string
-          is_public: boolean
           start_date: string
           title: string
           updated_at: string
@@ -89,7 +61,6 @@ export type Database = {
           description?: string | null
           end_date: string
           id?: string
-          is_public?: boolean
           start_date: string
           title: string
           updated_at?: string
@@ -101,7 +72,6 @@ export type Database = {
           description?: string | null
           end_date?: string
           id?: string
-          is_public?: boolean
           start_date?: string
           title?: string
           updated_at?: string
@@ -109,40 +79,9 @@ export type Database = {
         }
         Relationships: []
       }
-      invite_codes: {
-        Row: {
-          code: string
-          created_at: string
-          expires_at: string
-          id: string
-          used_at: string | null
-          used_by: string | null
-          user_id: string
-        }
-        Insert: {
-          code: string
-          created_at?: string
-          expires_at?: string
-          id?: string
-          used_at?: string | null
-          used_by?: string | null
-          user_id: string
-        }
-        Update: {
-          code?: string
-          created_at?: string
-          expires_at?: string
-          id?: string
-          used_at?: string | null
-          used_by?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           avatar_type: string
-          avatar_url: string | null
           created_at: string
           display_name: string
           id: string
@@ -151,7 +90,6 @@ export type Database = {
         }
         Insert: {
           avatar_type: string
-          avatar_url?: string | null
           created_at?: string
           display_name: string
           id?: string
@@ -160,7 +98,6 @@ export type Database = {
         }
         Update: {
           avatar_type?: string
-          avatar_url?: string | null
           created_at?: string
           display_name?: string
           id?: string
@@ -204,10 +141,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      are_friends: {
-        Args: { user1_id: string; user2_id: string }
-        Returns: boolean
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never

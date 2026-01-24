@@ -5,7 +5,6 @@ interface AvatarProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   isWinner?: boolean;
-  imageUrl?: string | null;
 }
 
 const sizeClasses = {
@@ -15,12 +14,12 @@ const sizeClasses = {
   xl: 'w-28 h-28 text-5xl',
 };
 
-export const Avatar = ({ type, size = 'md', className = '', isWinner = false, imageUrl }: AvatarProps) => {
+export const Avatar = ({ type, size = 'md', className = '', isWinner = false }: AvatarProps) => {
   const emoji = type === 'male' ? '👨' : '👩';
   
   return (
     <motion.div
-      className={`relative rounded-full flex items-center justify-center shadow-soft overflow-hidden ${
+      className={`rounded-full flex items-center justify-center shadow-soft ${
         type === 'male' ? 'bg-sage-light' : 'bg-coral-light'
       } ${sizeClasses[size]} ${className}`}
       whileHover={{ scale: 1.05 }}
@@ -28,7 +27,7 @@ export const Avatar = ({ type, size = 'md', className = '', isWinner = false, im
     >
       {isWinner && (
         <motion.span 
-          className="absolute -top-2 -right-1 text-xl z-10"
+          className="absolute -top-2 -right-1 text-xl"
           initial={{ scale: 0, rotate: -20 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', bounce: 0.5, delay: 0.2 }}
@@ -36,17 +35,9 @@ export const Avatar = ({ type, size = 'md', className = '', isWinner = false, im
           👑
         </motion.span>
       )}
-      {imageUrl ? (
-        <img 
-          src={imageUrl} 
-          alt="Profile" 
-          className="w-full h-full object-cover"
-        />
-      ) : (
-        <span role="img" aria-label={type === 'male' ? 'Male avatar' : 'Female avatar'}>
-          {emoji}
-        </span>
-      )}
+      <span role="img" aria-label={type === 'male' ? 'Male avatar' : 'Female avatar'}>
+        {emoji}
+      </span>
     </motion.div>
   );
 };
