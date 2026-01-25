@@ -6,7 +6,7 @@ import { Trophy } from 'lucide-react';
 
 export default function Compete() {
   const { user } = useAuth();
-  const { myData, friendData, isLoading } = useHabits();
+  const { allUsersWithHabits, isLoading } = useHabits();
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-pulse-soft font-display">Loading...</div></div>;
 
@@ -20,7 +20,7 @@ export default function Compete() {
       </header>
 
       <main className="px-4 py-6 max-w-md mx-auto">
-        <Leaderboard users={[myData, friendData]} currentUserId={user?.id} />
+        <Leaderboard users={allUsersWithHabits} currentUserId={user?.id} />
       </main>
       <BottomNav />
     </div>
