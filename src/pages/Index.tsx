@@ -37,7 +37,7 @@ export default function Index() {
       <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border/50 px-4 py-4">
         <div className="flex items-center justify-between max-w-md mx-auto">
           <div className="flex items-center gap-3">
-            {myData && <Avatar type={myData.profile.avatar_type} size="sm" />}
+            {myData && <Avatar type={myData.profile.avatar_type} avatarUrl={myData.profile.avatar_url} size="sm" />}
             <div>
               <h1 className="font-display font-bold text-lg">Hi, {myData?.profile.display_name || 'Friend'}!</h1>
               <p className="text-sm text-muted-foreground">{myHabits.length} habits tracked</p>

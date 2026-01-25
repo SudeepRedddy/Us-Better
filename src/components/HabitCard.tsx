@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Flame, Calendar, MoreVertical, Trash2, Edit3, ChevronRight } from 'lucide-react';
+import { Check, Flame, Calendar, MoreVertical, Trash2, Edit3, ChevronRight, EyeOff } from 'lucide-react';
 import { HabitWithStats } from '@/types/habits';
-import { format, parseISO, isWithinInterval, isSameDay } from 'date-fns';
+import { format, parseISO, isWithinInterval } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
@@ -81,9 +81,14 @@ export const HabitCard = ({ habit, isOwner, onToggle, onEdit, onDelete }: HabitC
           )}
           
           <div className="flex-1 min-w-0">
-            <h3 className="font-display font-semibold text-foreground truncate">
-              {habit.title}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-display font-semibold text-foreground truncate">
+                {habit.title}
+              </h3>
+              {!habit.is_public && isOwner && (
+                <EyeOff className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              )}
+            </div>
             <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Flame className="w-4 h-4 text-accent" />
