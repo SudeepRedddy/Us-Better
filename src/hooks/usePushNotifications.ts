@@ -24,16 +24,10 @@ export const usePushNotifications = () => {
 
   const fetchVapidPublicKey = useCallback(async (): Promise<string | null> => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-vapid-key`,
-        {
-          headers: {
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-        }
-      );
-      if (!response.ok) return null;
-      const data = await response.json();
+      const { data, error } = await supabase.functions.invoke('get-vapid-key');
+      
+      if (error) throw error;
+      
       const key = typeof data?.vapidPublicKey === 'string' ? data.vapidPublicKey.trim() : null;
       if (key) setVapidPublicKey(key);
       return key;
@@ -51,8 +45,6 @@ export const usePushNotifications = () => {
       
       if (supported) {
         setPermission(Notification.permission);
-
-        // Fetch VAPID public key from backend
         await fetchVapidPublicKey();
       }
     };
@@ -73,19 +65,16 @@ export const usePushNotifications = () => {
         const subscription = await registration.pushManager.getSubscription();
         
         if (subscription) {
-          // Check if subscription exists in database using fetch
-          const session = await supabase.auth.getSession();
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/push_subscriptions?user_id=eq.${user.id}&endpoint=eq.${encodeURIComponent(subscription.endpoint)}&select=id`,
-            {
-              headers: {
-                'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-                'Authorization': `Bearer ${session.data.session?.access_token}`,
-              },
-            }
-          );
-          const results = await response.json();
-          setIsSubscribed(Array.isArray(results) && results.length > 0);
+          // Check if subscription exists in database using Supabase client
+          const { data, error } = await supabase
+            .from('push_subscriptions')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('endpoint', subscription.endpoint)
+            .maybeSingle();
+
+          if (error) throw error;
+          setIsSubscribed(!!data);
         } else {
           setIsSubscribed(false);
         }
@@ -106,7 +95,7 @@ export const usePushNotifications = () => {
       return false;
     }
 
-    // Always fetch latest VAPID key right before subscribing (handles key rotation)
+    // Always fetch latest VAPID key right before subscribing
     const latestVapidKey = await fetchVapidPublicKey();
     if (!latestVapidKey) {
       toast.error('Notification service is not ready. Please try again.');
@@ -116,15 +105,12 @@ export const usePushNotifications = () => {
     try {
       setIsLoading(true);
 
-      // Check current permission first
       const currentPermission = Notification.permission;
-      
       if (currentPermission === 'denied') {
         toast.error('Notifications are blocked. Please enable them in your browser settings.');
         return false;
       }
 
-      // Request permission if not already granted
       let permissionResult: NotificationPermission = currentPermission;
       if (currentPermission === 'default') {
         permissionResult = await Notification.requestPermission();
@@ -136,16 +122,14 @@ export const usePushNotifications = () => {
         return false;
       }
 
-      // Get service worker registration
       const registration = await navigator.serviceWorker.ready;
-
+      
       // Subscribe to push
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(latestVapidKey),
       });
 
-      // Extract keys
       const subscriptionJson = subscription.toJSON();
       const keys = subscriptionJson.keys;
 
@@ -153,30 +137,20 @@ export const usePushNotifications = () => {
         throw new Error('Failed to get subscription keys');
       }
 
-      // Save to database using fetch to avoid type issues
-      const session = await supabase.auth.getSession();
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/push_subscriptions`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'Authorization': `Bearer ${session.data.session?.access_token}`,
-            'Prefer': 'resolution=merge-duplicates',
-          },
-          body: JSON.stringify({
-            user_id: user.id,
-            endpoint: subscription.endpoint,
-            p256dh: keys.p256dh,
-            auth_key: keys.auth,
-          }),
-        }
-      );
+      // Save to database using Supabase client
+      // Using 'any' cast to bypass potential strict typing issues if types aren't updated
+      const { error } = await supabase
+        .from('push_subscriptions')
+        .upsert({
+          user_id: user.id,
+          endpoint: subscription.endpoint,
+          p256dh: keys.p256dh,
+          auth_key: keys.auth,
+        } as any, {
+          onConflict: 'user_id, endpoint'
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to save subscription');
-      }
+      if (error) throw error;
 
       setIsSubscribed(true);
       toast.success('Notifications enabled! You\'ll get reminders at 7 PM IST.');
@@ -187,7 +161,7 @@ export const usePushNotifications = () => {
       if (error.message?.includes('permission')) {
         toast.error('Please allow notifications in your browser settings');
       } else {
-        toast.error('Failed to enable notifications. Please try again.');
+        toast.error('Failed to enable notifications: ' + (error.message || 'Unknown error'));
       }
       return false;
     } finally {
@@ -207,18 +181,14 @@ export const usePushNotifications = () => {
       if (subscription) {
         await subscription.unsubscribe();
         
-        // Remove from database using fetch
-        const session = await supabase.auth.getSession();
-        await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/push_subscriptions?user_id=eq.${user.id}&endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
-          {
-            method: 'DELETE',
-            headers: {
-              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              'Authorization': `Bearer ${session.data.session?.access_token}`,
-            },
-          }
-        );
+        // Remove from database using Supabase client
+        const { error } = await supabase
+          .from('push_subscriptions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('endpoint', subscription.endpoint);
+
+        if (error) throw error;
       }
 
       setIsSubscribed(false);

@@ -4,9 +4,11 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 export function NotificationToggle() {
   const { isSupported, isSubscribed, isLoading, permission, toggleSubscription } = usePushNotifications();
+  const { user } = useAuth();
   const [isTesting, setIsTesting] = useState(false);
 
   const sendTestNotification = async () => {
@@ -29,10 +31,29 @@ export function NotificationToggle() {
         }
       );
       
-      if (response.ok) {
-        toast.success('Test notification sent! Check your notifications.');
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Filter results for the current user
+        const myResults = data.results?.filter((r: any) => r.userId === user?.id) || [];
+        
+        // Check if ANY notification was successful or at least "deleted" (cleaned up)
+        const success = myResults.find((r: any) => r.status === 'sent');
+        const cleanedUp = myResults.find((r: any) => r.status === 'deleted');
+        const failed = myResults.find((r: any) => r.status === 'error');
+
+        if (success) {
+          toast.success('Notification sent! Check your device.');
+        } else if (cleanedUp && !failed) {
+          toast.info('Old subscription cleaned up. Please try sending one more time.');
+        } else if (failed) {
+          console.error('Push failed:', failed);
+          // Only show error if NO success was found
+          toast.error(`Delivery failed: ${failed.error || 'Unknown error'}`);
+        } else {
+          toast.success('Test initiated.');
+        }
       } else {
-        const data = await response.json();
         toast.error(data.error || 'Failed to send test notification');
       }
     } catch (error) {
