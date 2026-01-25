@@ -60,6 +60,7 @@ export const Leaderboard = ({ users, currentUserId }: LeaderboardProps) => {
                 </div>
                 <Avatar 
                   type={user.profile.avatar_type} 
+                  avatarUrl={user.profile.avatar_url}
                   size="lg" 
                   isWinner={isWinner}
                 />

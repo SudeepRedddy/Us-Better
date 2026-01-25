@@ -43,6 +43,17 @@ export function NotificationToggle() {
     }
   };
 
+  // Check if running as iOS PWA
+  const isIOSPWA = () => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isStandalone = (window.navigator as any).standalone === true;
+    return isIOS && isStandalone;
+  };
+
+  const isIOSBrowser = () => {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window.navigator as any).standalone;
+  };
+
   if (!isSupported) {
     return (
       <div className="bg-card rounded-2xl p-4 shadow-soft border border-border/50">
@@ -51,7 +62,10 @@ export function NotificationToggle() {
           <div className="flex-1">
             <div className="font-display font-semibold">Notifications</div>
             <div className="text-sm text-muted-foreground">
-              Not supported on this device. Try installing the app to your home screen.
+              {isIOSBrowser() 
+                ? "To enable notifications, add this app to your Home Screen first. Tap the Share button → 'Add to Home Screen'"
+                : "Not supported on this device. Try installing the app to your home screen."
+              }
             </div>
           </div>
         </div>

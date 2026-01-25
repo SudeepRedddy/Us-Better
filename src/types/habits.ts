@@ -3,6 +3,7 @@ export interface Profile {
   user_id: string;
   display_name: string;
   avatar_type: 'male' | 'female';
+  avatar_url: string | null;
   created_at: string;
   updated_at: string;
 }

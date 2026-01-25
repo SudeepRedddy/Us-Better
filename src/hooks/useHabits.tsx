@@ -179,7 +179,7 @@ export const useHabits = () => {
   const habitsWithStats: HabitWithStats[] = habits.map(h => calculateHabitStats(h, checkIns));
 
   const myProfile = profiles.find(p => p.user_id === user?.id);
-  const friendProfile = profiles.find(p => p.user_id !== user?.id);
+  const friendProfiles = profiles.filter(p => p.user_id !== user?.id);
 
   const getUserWithHabits = (profile: Profile | undefined): UserWithHabits | null => {
     if (!profile) return null;
@@ -193,14 +193,20 @@ export const useHabits = () => {
     return { profile, habits: userHabits, totalScore, averageCompletion };
   };
 
+  // All users for leaderboard
+  const allUsersWithHabits: UserWithHabits[] = profiles
+    .map(p => getUserWithHabits(p))
+    .filter((u): u is UserWithHabits => u !== null);
+
   return {
     profiles,
     habits: habitsWithStats,
     checkIns,
     myProfile,
-    friendProfile,
+    friendProfiles,
     myData: getUserWithHabits(myProfile),
-    friendData: getUserWithHabits(friendProfile),
+    allUsersWithHabits,
+    getUserWithHabits,
     isLoading,
     createHabit,
     updateHabit,

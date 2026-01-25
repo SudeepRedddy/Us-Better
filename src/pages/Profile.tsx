@@ -1,6 +1,6 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useHabits } from '@/hooks/useHabits';
-import { Avatar } from '@/components/Avatar';
+import { ProfilePhotoUpload } from '@/components/ProfilePhotoUpload';
 import { BottomNav } from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
 import { NotificationToggle } from '@/components/NotificationToggle';
@@ -23,7 +23,12 @@ export default function Profile() {
     <div className="min-h-screen bg-background pb-24">
       <header className="bg-primary/5 px-4 pt-12 pb-8">
         <div className="max-w-md mx-auto flex flex-col items-center">
-          {myData && <Avatar type={myData.profile.avatar_type} size="xl" />}
+          {myData && (
+            <ProfilePhotoUpload 
+              currentAvatarUrl={myData.profile.avatar_url} 
+              avatarType={myData.profile.avatar_type} 
+            />
+          )}
           <h1 className="font-display font-bold text-2xl mt-4">{myData?.profile.display_name}</h1>
         </div>
       </header>
