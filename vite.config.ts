@@ -17,6 +17,11 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
+      // STOP AUTO-REGISTRATION: You are doing this in main.tsx
+      injectRegister: null, 
+      // RENAME GENERATED WORKER: So it doesn't overwrite your public/sw.js
+      filename: 'manifest-sw.js', 
+      // KEEP MANIFEST GENERATION: We still need the manifest for PWA install
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icon-192.png', 'icon-512.png'],
       manifest: {
@@ -47,13 +52,14 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
+        // Disable SW generation or ensure it doesn't conflict
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        // Don't cache the service worker itself
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/, /^\/sw\.js/],
       },
       devOptions: {
         enabled: true,
+        type: 'module',
       },
     }),
   ].filter(Boolean),
