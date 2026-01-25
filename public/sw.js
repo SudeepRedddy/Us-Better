@@ -3,61 +3,57 @@
 self.addEventListener('push', (event) => {
   console.log('[SW] Push event received');
   
-  if (!event.data) {
-    console.log('[SW] No data in push event');
-    return;
+  // Default values in case parsing fails
+  let title = 'New Notification';
+  let options = {
+    body: 'You have a new update.',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { url: '/' },
+    tag: 'habit-reminder',
+    renotify: true
+  };
+
+  if (event.data) {
+    try {
+      const data = event.data.json();
+      title = data.title || title;
+      options.body = data.body || options.body;
+      options.icon = data.icon || options.icon;
+      options.badge = data.badge || options.badge;
+      options.data = data.data || options.data;
+      // Unique tag to ensure multiple notifications show up
+      options.tag = 'habit-reminder-' + Date.now();
+    } catch (err) {
+      console.error('[SW] Error parsing JSON:', err);
+      // We continue with defaults so you at least see *something*
+    }
   }
 
-  try {
-    const data = event.data.json();
-    console.log('[SW] Push data:', data);
-    
-    const options = {
-      body: data.body,
-      icon: data.icon || '/icon-192.png',
-      badge: data.badge || '/icon-192.png',
-      vibrate: [200, 100, 200],
-      data: data.data || {},
-      tag: 'habit-reminder-' + Date.now(), // Unique tag to prevent grouping
-      renotify: true, // Always notify even if same tag
-      requireInteraction: false, // Auto-dismiss after a while
-      silent: false, // Make sure sound plays
-      actions: [
-        { action: 'open', title: 'Open App' },
-        { action: 'dismiss', title: 'Dismiss' },
-      ],
-    };
-
-    // Always show notification, even if app is in foreground
-    event.waitUntil(
-      self.registration.showNotification(data.title, options)
-        .then(() => console.log('[SW] Notification shown successfully'))
-        .catch((err) => console.error('[SW] Failed to show notification:', err))
-    );
-  } catch (error) {
-    console.error('[SW] Error parsing push data:', error);
-  }
+  // iOS-Specific options
+  // Remove actions/vibrate as they are sometimes problematic on iOS PWAs
+  const notificationPromise = self.registration.showNotification(title, options);
+  event.waitUntil(notificationPromise);
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  if (event.action === 'dismiss') {
-    return;
-  }
-
+  // Handle opening the app
   const urlToOpen = event.notification.data?.url || '/';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Check if there's already a window open
+      // If a window is already open, focus it
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.navigate(urlToOpen);
+          if ('navigate' in client) {
+            client.navigate(urlToOpen);
+          }
           return client.focus();
         }
       }
-      // If no window is open, open a new one
+      // Otherwise open a new window
       if (self.clients.openWindow) {
         return self.clients.openWindow(urlToOpen);
       }
@@ -65,7 +61,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// Handle service worker installation
+// Immediate activation
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
