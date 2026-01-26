@@ -1,19 +1,40 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, Calendar, Eye, EyeOff } from 'lucide-react';
+import { X, Calendar, Eye, EyeOff, Bell, BellOff } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Habit } from '@/types/habits';
+
+type ReminderFrequency = 'daily' | 'hourly' | 'custom';
 
 interface HabitFormProps {
   habit?: Habit;
-  onSubmit: (data: { title: string; description: string; start_date: string; end_date: string; color: string; is_public: boolean }) => void;
+  onSubmit: (data: { 
+    title: string; 
+    description: string; 
+    start_date: string; 
+    end_date: string; 
+    color: string; 
+    is_public: boolean;
+    reminder_enabled: boolean;
+    reminder_frequency: ReminderFrequency;
+    reminder_times: string[];
+  }) => void;
   onClose: () => void;
 }
+
+const PRESET_TIMES = [
+  { label: 'Morning (9 AM)', value: '09:00' },
+  { label: 'Noon (12 PM)', value: '12:00' },
+  { label: 'Afternoon (3 PM)', value: '15:00' },
+  { label: 'Evening (6 PM)', value: '18:00' },
+  { label: 'Night (9 PM)', value: '21:00' },
+];
 
 export const HabitForm = ({ habit, onSubmit, onClose }: HabitFormProps) => {
   const [title, setTitle] = useState(habit?.title || '');
@@ -22,12 +43,33 @@ export const HabitForm = ({ habit, onSubmit, onClose }: HabitFormProps) => {
   const [endDate, setEndDate] = useState(habit?.end_date || format(addDays(new Date(), 30), 'yyyy-MM-dd'));
   const [color, setColor] = useState(habit?.color || 'sage');
   const [isPublic, setIsPublic] = useState(habit?.is_public ?? true);
+  const [reminderEnabled, setReminderEnabled] = useState(habit?.reminder_enabled ?? false);
+  const [reminderFrequency, setReminderFrequency] = useState<ReminderFrequency>(habit?.reminder_frequency ?? 'daily');
+  const [reminderTimes, setReminderTimes] = useState<string[]>(habit?.reminder_times ?? ['19:00']);
 
   const colors = [
     { name: 'sage', class: 'bg-sage' },
     { name: 'coral', class: 'bg-coral' },
     { name: 'terracotta', class: 'bg-terracotta' },
   ];
+
+  const handleFrequencyChange = (value: ReminderFrequency) => {
+    setReminderFrequency(value);
+    if (value === 'daily') {
+      setReminderTimes(['19:00']);
+    } else if (value === 'hourly') {
+      // Every 2 hours from 8 AM to 8 PM
+      setReminderTimes(['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00']);
+    }
+  };
+
+  const toggleCustomTime = (time: string) => {
+    if (reminderTimes.includes(time)) {
+      setReminderTimes(reminderTimes.filter(t => t !== time));
+    } else {
+      setReminderTimes([...reminderTimes, time].sort());
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +80,10 @@ export const HabitForm = ({ habit, onSubmit, onClose }: HabitFormProps) => {
         start_date: startDate, 
         end_date: endDate,
         color,
-        is_public: isPublic
+        is_public: isPublic,
+        reminder_enabled: reminderEnabled,
+        reminder_frequency: reminderFrequency,
+        reminder_times: reminderTimes,
       });
     }
   };
@@ -163,6 +208,82 @@ export const HabitForm = ({ habit, onSubmit, onClose }: HabitFormProps) => {
               onCheckedChange={setIsPublic}
               aria-label="Toggle habit visibility"
             />
+          </div>
+
+          {/* Reminder Settings */}
+          <div className="space-y-4 p-4 bg-muted/50 rounded-xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {reminderEnabled ? (
+                  <Bell className="w-5 h-5 text-primary" />
+                ) : (
+                  <BellOff className="w-5 h-5 text-muted-foreground" />
+                )}
+                <div>
+                  <Label className="text-sm font-medium">Reminders</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {reminderEnabled ? 'Get notified for this habit' : 'No reminders'}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={reminderEnabled}
+                onCheckedChange={setReminderEnabled}
+                aria-label="Toggle reminders"
+              />
+            </div>
+
+            {reminderEnabled && (
+              <div className="space-y-3 pt-2 border-t border-border/50">
+                <Label className="text-sm font-medium">Frequency</Label>
+                <RadioGroup
+                  value={reminderFrequency}
+                  onValueChange={(v) => handleFrequencyChange(v as ReminderFrequency)}
+                  className="space-y-2"
+                >
+                  <div className="flex items-center space-x-3">
+                    <RadioGroupItem value="daily" id="daily" />
+                    <Label htmlFor="daily" className="text-sm cursor-pointer">
+                      Once a day (7 PM)
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <RadioGroupItem value="hourly" id="hourly" />
+                    <Label htmlFor="hourly" className="text-sm cursor-pointer">
+                      Every 2 hours (8 AM - 8 PM)
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <RadioGroupItem value="custom" id="custom" />
+                    <Label htmlFor="custom" className="text-sm cursor-pointer">
+                      Custom times
+                    </Label>
+                  </div>
+                </RadioGroup>
+
+                {reminderFrequency === 'custom' && (
+                  <div className="space-y-2 pt-2">
+                    <Label className="text-xs text-muted-foreground">Select times:</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {PRESET_TIMES.map(({ label, value }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => toggleCustomTime(value)}
+                          className={`px-3 py-1.5 text-xs rounded-full transition-all ${
+                            reminderTimes.includes(value)
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted hover:bg-muted/80'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           
           <Button 

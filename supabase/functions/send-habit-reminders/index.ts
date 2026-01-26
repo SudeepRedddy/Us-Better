@@ -6,6 +6,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Get current hour in IST (UTC+5:30)
+function getCurrentISTHour(): string {
+  const now = new Date()
+  // Convert to IST
+  const istOffset = 5.5 * 60 * 60 * 1000
+  const istTime = new Date(now.getTime() + istOffset)
+  const hours = istTime.getUTCHours().toString().padStart(2, '0')
+  return `${hours}:00`
+}
+
+// Check if current time matches any reminder time (with 30 min tolerance)
+function shouldSendReminder(reminderTimes: string[], currentHour: string): boolean {
+  const currentHourNum = parseInt(currentHour.split(':')[0])
+  
+  return reminderTimes.some(time => {
+    const reminderHour = parseInt(time.split(':')[0])
+    // Match if within the same hour
+    return reminderHour === currentHourNum
+  })
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -14,7 +35,6 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    // Normalize keys (avoid hidden whitespace/newlines causing VAPID mismatches)
     const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY')?.trim()!
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY')?.trim()!
 
@@ -27,7 +47,9 @@ Deno.serve(async (req) => {
       // No body or invalid JSON, not a test
     }
 
+    const currentHour = getCurrentISTHour()
     console.log('Starting push notification job...', isTest ? '(TEST MODE)' : '')
+    console.log('Current IST hour:', currentHour)
     console.log('VAPID keys configured:', !!vapidPublicKey && !!vapidPrivateKey)
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
@@ -71,7 +93,7 @@ Deno.serve(async (req) => {
 
         const payload = JSON.stringify({
           title: '🧪 Test Notification',
-          body: 'Push notifications are working! You\'ll receive reminders at 7 PM IST.',
+          body: 'Push notifications are working! You\'ll receive reminders based on your habit settings.',
           icon: '/icon-192.png',
           badge: '/icon-192.png',
           data: {
@@ -114,11 +136,12 @@ Deno.serve(async (req) => {
       try {
         console.log(`Processing subscription for user ${sub.user_id}`)
 
-        // Get user's habits that are active today
+        // Get user's habits that are active today AND have reminders enabled
         const { data: habits, error: habitsError } = await supabase
           .from('habits')
-          .select('id, title')
+          .select('id, title, reminder_enabled, reminder_frequency, reminder_times')
           .eq('user_id', sub.user_id)
+          .eq('reminder_enabled', true)
           .lte('start_date', today)
           .gte('end_date', today)
 
@@ -127,14 +150,27 @@ Deno.serve(async (req) => {
           continue
         }
 
-        console.log(`Found ${habits?.length || 0} active habits for user ${sub.user_id}`)
+        console.log(`Found ${habits?.length || 0} habits with reminders for user ${sub.user_id}`)
 
         if (!habits || habits.length === 0) {
-          continue // No active habits for this user
+          continue // No habits with reminders for this user
         }
 
-        // Get today's check-ins for this user's habits
-        const habitIds = habits.map(h => h.id)
+        // Filter habits that should be reminded at current hour
+        const habitsToRemind = habits.filter(habit => {
+          const times = habit.reminder_times || ['19:00']
+          return shouldSendReminder(times, currentHour)
+        })
+
+        console.log(`Habits to remind at ${currentHour}: ${habitsToRemind.length}`)
+
+        if (habitsToRemind.length === 0) {
+          results.push({ userId: sub.user_id, status: 'skipped', reason: 'no_matching_time' })
+          continue
+        }
+
+        // Get today's check-ins for habits that need reminding
+        const habitIds = habitsToRemind.map(h => h.id)
         const { data: checkIns, error: checkInsError } = await supabase
           .from('daily_check_ins')
           .select('habit_id')
@@ -148,16 +184,16 @@ Deno.serve(async (req) => {
 
         // Find incomplete habits
         const completedHabitIds = new Set(checkIns?.map(c => c.habit_id) || [])
-        const incompleteHabits = habits.filter(h => !completedHabitIds.has(h.id))
+        const incompleteHabits = habitsToRemind.filter(h => !completedHabitIds.has(h.id))
 
         console.log(`Incomplete habits: ${incompleteHabits.length}`)
 
         if (incompleteHabits.length === 0) {
           results.push({ userId: sub.user_id, status: 'skipped', reason: 'all_complete' })
-          continue // All habits completed
+          continue
         }
 
-        // Send push notification using native implementation
+        // Send push notification
         const pushSubscription: PushSubscription = {
           endpoint: sub.endpoint,
           keys: {
@@ -166,9 +202,15 @@ Deno.serve(async (req) => {
           },
         }
 
+        // Create personalized message
+        const habitTitles = incompleteHabits.slice(0, 2).map(h => h.title).join(', ')
+        const moreCount = incompleteHabits.length > 2 ? ` +${incompleteHabits.length - 2} more` : ''
+
         const payload = JSON.stringify({
-          title: '🌱 Don\'t forget your habits!',
-          body: `You have ${incompleteHabits.length} incomplete habit${incompleteHabits.length > 1 ? 's' : ''} today. Keep your streak going!`,
+          title: '🌱 Habit Reminder',
+          body: incompleteHabits.length === 1 
+            ? `Don't forget: ${incompleteHabits[0].title}`
+            : `${habitTitles}${moreCount} - Keep your streak going!`,
           icon: '/icon-192.png',
           badge: '/icon-192.png',
           data: {
@@ -219,7 +261,7 @@ Deno.serve(async (req) => {
     console.log('Push notification job completed. Results:', results)
 
     return new Response(
-      JSON.stringify({ success: true, results }),
+      JSON.stringify({ success: true, currentHour, results }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 

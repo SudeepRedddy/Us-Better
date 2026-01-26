@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Flame, Calendar, MoreVertical, Trash2, Edit3, ChevronRight, EyeOff } from 'lucide-react';
+import { Check, Flame, Calendar, MoreVertical, Trash2, Edit3, ChevronRight, EyeOff, Bell } from 'lucide-react';
 import { HabitWithStats } from '@/types/habits';
 import { format, parseISO, isWithinInterval } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
@@ -85,8 +85,11 @@ export const HabitCard = ({ habit, isOwner, onToggle, onEdit, onDelete }: HabitC
               <h3 className="font-display font-semibold text-foreground truncate">
                 {habit.title}
               </h3>
+              {habit.reminder_enabled && isOwner && (
+                <Bell className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+              )}
               {!habit.is_public && isOwner && (
-                <EyeOff className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <EyeOff className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
               )}
             </div>
             <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">

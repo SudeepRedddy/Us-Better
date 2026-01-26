@@ -78,6 +78,9 @@ export type Database = {
           end_date: string
           id: string
           is_public: boolean
+          reminder_enabled: boolean
+          reminder_frequency: string
+          reminder_times: string[] | null
           start_date: string
           title: string
           updated_at: string
@@ -90,6 +93,9 @@ export type Database = {
           end_date: string
           id?: string
           is_public?: boolean
+          reminder_enabled?: boolean
+          reminder_frequency?: string
+          reminder_times?: string[] | null
           start_date: string
           title: string
           updated_at?: string
@@ -102,6 +108,9 @@ export type Database = {
           end_date?: string
           id?: string
           is_public?: boolean
+          reminder_enabled?: boolean
+          reminder_frequency?: string
+          reminder_times?: string[] | null
           start_date?: string
           title?: string
           updated_at?: string
