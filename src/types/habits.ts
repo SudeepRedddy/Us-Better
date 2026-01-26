@@ -17,6 +17,9 @@ export interface Habit {
   end_date: string;
   color: string;
   is_public: boolean;
+  reminder_enabled: boolean;
+  reminder_frequency: 'daily' | 'hourly' | 'custom';
+  reminder_times: string[];
   created_at: string;
   updated_at: string;
 }
