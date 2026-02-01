@@ -3,40 +3,69 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('avatars', 'avatars', true)
 ON CONFLICT (id) DO NOTHING;
 
--- 2. Enable RLS on objects (Just to be safe, though usually enabled by default)
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- (Removed the ALTER TABLE command that caused the error)
 
--- 3. Policy: Public Access
+-- 2. Policy: Public Access
 -- Everyone can view any avatar (needed for friends to see your pic)
-CREATE POLICY "Avatar images are publicly accessible"
-ON storage.objects FOR SELECT
-USING ( bucket_id = 'avatars' );
+-- We use DO $$ blocks to safely create policies without errors if they already exist
 
--- 4. Policy: Authenticated Uploads
--- Users can upload files, but ONLY to a folder matching their User ID
--- Matches logic in ProfilePhotoUpload.tsx: `${user.id}/${Date.now()}.${fileExt}`
-CREATE POLICY "Users can upload their own avatar"
-ON storage.objects FOR INSERT
-WITH CHECK (
-  bucket_id = 'avatars' 
-  AND auth.role() = 'authenticated'
-  AND (storage.foldername(name))[1] = auth.uid()::text
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Avatar images are publicly accessible'
+    ) THEN
+        CREATE POLICY "Avatar images are publicly accessible"
+        ON storage.objects FOR SELECT
+        USING ( bucket_id = 'avatars' );
+    END IF;
+END
+$$;
 
--- 5. Policy: Authenticated Updates
--- Users can replace their own avatar files
-CREATE POLICY "Users can update their own avatar"
-ON storage.objects FOR UPDATE
-USING (
-  bucket_id = 'avatars' 
-  AND auth.uid()::text = (storage.foldername(name))[1]
-);
+-- 3. Policy: Authenticated Uploads
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Users can upload their own avatar'
+    ) THEN
+        CREATE POLICY "Users can upload their own avatar"
+        ON storage.objects FOR INSERT
+        WITH CHECK (
+            bucket_id = 'avatars' 
+            AND auth.role() = 'authenticated'
+            AND (storage.foldername(name))[1] = auth.uid()::text
+        );
+    END IF;
+END
+$$;
 
--- 6. Policy: Authenticated Deletes
--- Users can delete their own avatar files
-CREATE POLICY "Users can delete their own avatar"
-ON storage.objects FOR DELETE
-USING (
-  bucket_id = 'avatars' 
-  AND auth.uid()::text = (storage.foldername(name))[1]
-);
+-- 4. Policy: Authenticated Updates
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Users can update their own avatar'
+    ) THEN
+        CREATE POLICY "Users can update their own avatar"
+        ON storage.objects FOR UPDATE
+        USING (
+            bucket_id = 'avatars' 
+            AND auth.uid()::text = (storage.foldername(name))[1]
+        );
+    END IF;
+END
+$$;
+
+-- 5. Policy: Authenticated Deletes
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Users can delete their own avatar'
+    ) THEN
+        CREATE POLICY "Users can delete their own avatar"
+        ON storage.objects FOR DELETE
+        USING (
+            bucket_id = 'avatars' 
+            AND auth.uid()::text = (storage.foldername(name))[1]
+        );
+    END IF;
+END
+$$;
