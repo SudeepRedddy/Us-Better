@@ -2,20 +2,24 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { Profile, Habit, DailyCheckIn, HabitWithStats, UserWithHabits } from '@/types/habits';
-import { differenceInDays, parseISO, format, eachDayOfInterval, isWithinInterval, isBefore, isAfter } from 'date-fns';
+import { differenceInDays, parseISO, format, isBefore, isAfter } from 'date-fns';
+import { useMemo } from 'react';
 
-const calculateStreak = (checkIns: DailyCheckIn[], startDate: string, endDate: string): { current: number; longest: number } => {
-  if (checkIns.length === 0) return { current: 0, longest: 0 };
+// --- Helper Functions (Pure Logic) ---
+
+const calculateStreak = (dates: string[]): { current: number; longest: number } => {
+  if (dates.length === 0) return { current: 0, longest: 0 };
   
-  const sortedDates = checkIns
-    .map(c => c.check_in_date)
-    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+  // Sort descending (newest first)
+  // We use .getTime() for faster numeric comparison than string comparison
+  const sortedDates = [...dates].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
   
   const today = format(new Date(), 'yyyy-MM-dd');
   const yesterday = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
   
   // Calculate current streak
   let currentStreak = 0;
+  // Check if the most recent check-in is today or yesterday to keep streak alive
   if (sortedDates[0] === today || sortedDates[0] === yesterday) {
     currentStreak = 1;
     for (let i = 1; i < sortedDates.length; i++) {
@@ -33,7 +37,9 @@ const calculateStreak = (checkIns: DailyCheckIn[], startDate: string, endDate: s
   // Calculate longest streak
   let longestStreak = 0;
   let tempStreak = 1;
-  const ascending = [...sortedDates].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  // Use the already sorted array, but reverse iteration or resort ascending for this logic
+  // Resorted ascending for longest streak calculation
+  const ascending = [...sortedDates].reverse();
   
   for (let i = 1; i < ascending.length; i++) {
     const prevDate = new Date(ascending[i - 1]);
@@ -51,21 +57,21 @@ const calculateStreak = (checkIns: DailyCheckIn[], startDate: string, endDate: s
   return { current: currentStreak, longest: longestStreak };
 };
 
-const calculateHabitStats = (habit: Habit, checkIns: DailyCheckIn[]): HabitWithStats => {
+const calculateHabitStats = (habit: Habit, habitCheckIns: DailyCheckIn[]): HabitWithStats => {
   const startDate = parseISO(habit.start_date);
   const endDate = parseISO(habit.end_date);
   const today = new Date();
   
-  // Only count days up to today or end date, whichever is earlier
   const effectiveEndDate = isBefore(today, endDate) ? today : endDate;
   const effectiveStartDate = isAfter(startDate, today) ? today : startDate;
   
   const totalDays = differenceInDays(effectiveEndDate, effectiveStartDate) + 1;
-  const habitCheckIns = checkIns.filter(c => c.habit_id === habit.id);
   const totalCompleted = habitCheckIns.length;
   const completionPercentage = totalDays > 0 ? Math.round((totalCompleted / totalDays) * 100) : 0;
   
-  const { current, longest } = calculateStreak(habitCheckIns, habit.start_date, habit.end_date);
+  // Optimization: extracting just the date strings for the streak calculator
+  const checkInDates = habitCheckIns.map(c => c.check_in_date);
+  const { current, longest } = calculateStreak(checkInDates);
   
   return {
     ...habit,
@@ -78,10 +84,13 @@ const calculateHabitStats = (habit: Habit, checkIns: DailyCheckIn[]): HabitWithS
   };
 };
 
+// --- Hook ---
+
 export const useHabits = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  // 1. Fetch Profiles
   const { data: profiles = [], isLoading: profilesLoading } = useQuery({
     queryKey: ['profiles'],
     queryFn: async () => {
@@ -93,8 +102,10 @@ export const useHabits = () => {
       return data as Profile[];
     },
     enabled: !!user,
+    staleTime: 1000 * 60 * 5, // Cache for 5 mins
   });
 
+  // 2. Fetch Habits
   const { data: habits = [], isLoading: habitsLoading } = useQuery({
     queryKey: ['habits'],
     queryFn: async () => {
@@ -106,11 +117,15 @@ export const useHabits = () => {
       return data as Habit[];
     },
     enabled: !!user,
+    staleTime: 1000 * 60 * 1, // Cache for 1 min
   });
 
+  // 3. Fetch Check-ins
   const { data: checkIns = [], isLoading: checkInsLoading } = useQuery({
     queryKey: ['check_ins'],
     queryFn: async () => {
+      // OPTIMIZATION: In the future, you can limit this to the current year
+      // .gte('check_in_date', `${new Date().getFullYear()}-01-01`)
       const { data, error } = await supabase
         .from('daily_check_ins')
         .select('*');
@@ -120,6 +135,28 @@ export const useHabits = () => {
     enabled: !!user,
   });
 
+  // 4. OPTIMIZATION: Group check-ins by Habit ID
+  // This turns the O(N*M) search into O(N) lookup.
+  const checkInsByHabitId = useMemo(() => {
+    const map = new Map<string, DailyCheckIn[]>();
+    checkIns.forEach(c => {
+      if (!map.has(c.habit_id)) {
+        map.set(c.habit_id, []);
+      }
+      map.get(c.habit_id)!.push(c);
+    });
+    return map;
+  }, [checkIns]);
+
+  // 5. OPTIMIZATION: Memoize the heavy stat calculations
+  const habitsWithStats: HabitWithStats[] = useMemo(() => {
+    return habits.map(h => {
+      const relevantCheckIns = checkInsByHabitId.get(h.id) || [];
+      return calculateHabitStats(h, relevantCheckIns);
+    });
+  }, [habits, checkInsByHabitId]); // Only runs when data changes
+
+  // Mutations (Create/Update/Delete/Toggle)
   const createHabit = useMutation({
     mutationFn: async (habit: Omit<Habit, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
       const { data, error } = await supabase
@@ -157,6 +194,7 @@ export const useHabits = () => {
 
   const toggleCheckIn = useMutation({
     mutationFn: async ({ habitId, date }: { habitId: string; date: string }) => {
+      // Optimistic look-up using our map is faster, but for mutation logic we'll stick to simple check
       const existing = checkIns.find(c => c.habit_id === habitId && c.check_in_date === date);
       
       if (existing) {
@@ -176,12 +214,11 @@ export const useHabits = () => {
 
   const isLoading = profilesLoading || habitsLoading || checkInsLoading;
 
-  const habitsWithStats: HabitWithStats[] = habits.map(h => calculateHabitStats(h, checkIns));
-
   const myProfile = profiles.find(p => p.user_id === user?.id);
   const friendProfiles = profiles.filter(p => p.user_id !== user?.id);
 
-  const getUserWithHabits = (profile: Profile | undefined): UserWithHabits | null => {
+  // Memoize these getters too
+  const getUserWithHabits = useMemo(() => (profile: Profile | undefined): UserWithHabits | null => {
     if (!profile) return null;
     
     const userHabits = habitsWithStats.filter(h => h.user_id === profile.user_id);
@@ -191,12 +228,16 @@ export const useHabits = () => {
       : 0;
     
     return { profile, habits: userHabits, totalScore, averageCompletion };
-  };
+  }, [habitsWithStats]);
 
-  // All users for leaderboard
-  const allUsersWithHabits: UserWithHabits[] = profiles
-    .map(p => getUserWithHabits(p))
-    .filter((u): u is UserWithHabits => u !== null);
+  const allUsersWithHabits: UserWithHabits[] = useMemo(() => 
+    profiles
+      .map(p => getUserWithHabits(p))
+      .filter((u): u is UserWithHabits => u !== null),
+    [profiles, getUserWithHabits]
+  );
+
+  const myData = useMemo(() => getUserWithHabits(myProfile), [getUserWithHabits, myProfile]);
 
   return {
     profiles,
@@ -204,7 +245,7 @@ export const useHabits = () => {
     checkIns,
     myProfile,
     friendProfiles,
-    myData: getUserWithHabits(myProfile),
+    myData,
     allUsersWithHabits,
     getUserWithHabits,
     isLoading,
