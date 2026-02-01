@@ -34,7 +34,7 @@ export const Avatar = ({ type, avatarUrl, size = 'md', className = '', isWinner 
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', bounce: 0.5, delay: 0.2 }}
         >
-          👑
+          
         </motion.span>
       )}
       {hasPhoto ? (

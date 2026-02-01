@@ -101,10 +101,11 @@ export const HabitForm = ({ habit, onSubmit, onClose }: HabitFormProps) => {
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="bg-card w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-medium p-6 pb-safe-bottom"
+        // UPDATED: Added max-h-[85vh] and overflow-y-auto here
+        className="bg-card w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-medium p-6 pb-safe-bottom max-h-[85vh] overflow-y-auto scrollbar-hide"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 sticky top-0 bg-card z-10 pb-2">
           <h2 className="font-display text-xl font-bold">
             {habit ? 'Edit Habit' : 'New Habit'}
           </h2>

@@ -101,7 +101,7 @@ export function NotificationToggle() {
         <div className="flex-1">
           <div className="font-display font-semibold">Daily Reminders</div>
           <div className="text-sm text-muted-foreground">
-            Get notified at 7 PM IST if you have incomplete habits
+            Get notified, if you have incomplete habits
           </div>
           {permission === 'denied' && (
             <div className="text-xs text-destructive mt-1">
